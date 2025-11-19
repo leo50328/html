@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HTMI 檔案操作工具 - 暗色模式</title>
     <style>
-        /* 全黑主題樣式 */
+        /* 全黑主題樣式 (與前一個版本相同) */
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -131,17 +131,15 @@
     const filenameBaseInput = document.getElementById('filename-base-input');
     const filenameExtSpan = document.getElementById('filename-ext-span');
     
-    // 將副檔名定義為變數
     const FILE_EXTENSION = '.html'; 
 
     const localStorageCodeKey = 'current_html_code';
     const localStorageFilenameKey = 'current_html_filename_base'; 
 
-    // Helper 函數：取得完整檔名 (主檔名 + 副檔名)
     function getFullFilename() {
         const base = filenameBaseInput.value.trim();
         if (base === '') {
-            return 'index' + FILE_EXTENSION; // 確保有預設檔名
+            return 'index' + FILE_EXTENSION; 
         }
         if (base.toLowerCase().endsWith(FILE_EXTENSION)) {
              return base;
@@ -149,44 +147,36 @@
         return base + FILE_EXTENSION;
     }
 
-    // 1. 頁面載入時，從 localStorage 載入程式碼和主檔名
     window.onload = function() {
-        // 設定顯示的副檔名
         filenameExtSpan.textContent = FILE_EXTENSION; 
         
         const savedCode = localStorage.getItem(localStorageCodeKey);
         const savedFilenameBase = localStorage.getItem(localStorageFilenameKey);
         
-        // 載入程式碼
         if (savedCode !== null) { 
             editor.value = savedCode;
         } else {
             editor.value = ''; 
         }
         
-        // 載入主檔名，如果 LocalStorage 沒有，則使用 'index' 作為預設
         if (savedFilenameBase) {
             filenameBaseInput.value = savedFilenameBase;
         } else {
-            filenameBaseInput.value = 'index'; // **這裡設定預設為 index**
+            filenameBaseInput.value = 'index'; // 預設為 index
         }
 
-        // 任何編輯都會自動儲存
         editor.addEventListener('input', saveCodeToLocalStorage);
         filenameBaseInput.addEventListener('input', saveFilenameBaseToLocalStorage);
     };
 
-    // 自動儲存程式碼到 Local Storage
     function saveCodeToLocalStorage() {
         localStorage.setItem(localStorageCodeKey, editor.value);
     }
     
-    // 自動儲存主檔名到 Local Storage
     function saveFilenameBaseToLocalStorage() {
         localStorage.setItem(localStorageFilenameKey, filenameBaseInput.value);
     }
 
-    // 2. 執行 HTMI 檔案按鈕 (在新頁面執行)
     function executeCode() {
         const code = editor.value;
         if (code.trim() === '') {
@@ -199,10 +189,10 @@
         window.open(blobUrl, '_blank');
     }
 
-    // 3. 匯出 HTMI 檔案按鈕 (下載程式碼)
+    // 3. 匯出 HTMI 檔案按鈕 (新增提示)
     function exportToFile() {
         const code = editor.value;
-        const filename = getFullFilename(); // 使用完整檔名
+        const filename = getFullFilename(); 
         
         const blob = new Blob([code], { type: 'text/html' });
         const a = document.createElement('a');
@@ -214,10 +204,10 @@
         a.click();
         document.body.removeChild(a);
         
-        alert(`檔案已匯出為 "${filename}"！`);
+        // *** 新增的提示訊息 ***
+        alert(`檔案 "${filename}" 已開始下載！\n\n注意：瀏覽器會自動將檔案儲存在您預設的「下載資料夾」中。如需每次選擇儲存位置，您需要手動進入瀏覽器設定（例如 Chrome/Edge/Firefox）並開啟「下載前詢問儲存位置」選項。`);
     }
 
-    // 4. 匯入 HTMI 檔案按鈕 (從使用者電腦上傳檔案)
     function loadFromFile() {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
@@ -230,7 +220,6 @@
             const reader = new FileReader();
             reader.onload = event => {
                 editor.value = event.target.result;
-                // 從匯入的完整檔名中移除副檔名，只保留主檔名到輸入框
                 const baseName = file.name.replace(/\.(html|htm|txt)$/i, '');
                 filenameBaseInput.value = baseName;
 
@@ -247,15 +236,13 @@
         fileInput.click();
     }
 
-    // 5. 新增 HTMI 檔案按鈕 (只問主檔名，清空程式碼)
     function newFile() {
-        const newFilenameBase = prompt("請輸入新檔案的主檔名 (例如：new_project)", "index"); // **這裡設定預設為 index**
+        const newFilenameBase = prompt("請輸入新檔案的主檔名 (例如：new_project)", "index"); 
         
         if (newFilenameBase === null) {
-            return; // 使用者按了取消
+            return;
         }
 
-        // 清空程式碼並更新主檔名
         editor.value = '';
         filenameBaseInput.value = newFilenameBase;
 
@@ -264,7 +251,6 @@
         alert(`已創建新的檔案："${newFilenameBase + FILE_EXTENSION}"。`);
     }
 
-    // 6. 清除目前程式碼按鈕 (只問一次)
     function clearCode() {
         const confirmClear = confirm("確定要清除目前編輯器中的所有程式碼嗎？此操作不可撤銷。");
         if (confirmClear) {
@@ -274,7 +260,6 @@
         }
     }
 
-    // 7. 複製 HTMI 檔案按鈕
     function copyCode() {
         editor.select();
         try {
