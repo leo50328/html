@@ -26,7 +26,34 @@
             border-bottom: 1px solid #333;
             padding-bottom: 10px;
             margin-top: 0;
+            margin-bottom: 20px; /* 調整這裡的間距，讓標題與內容距離適中 */
         }
+        
+        /* 狀態通知列樣式 */
+        #status-bar {
+            /* 移除固定的 height，改為內容撐開 */
+            /* 預設不顯示，避免佔用空間 */
+            display: none; 
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            align-items: center;
+            /* 動畫效果在 display 切換時較難實現，這裡優先解決空間問題 */
+        }
+        .status-success {
+            background-color: #2e7d32; /* 綠色 */
+            color: white;
+        }
+        .status-error {
+            background-color: #c62828; /* 紅色 */
+            color: white;
+        }
+        .status-info {
+            background-color: #0288d1; /* 藍色 */
+            color: white;
+        }
+
         .controls {
             margin-bottom: 15px;
             display: flex;
@@ -77,14 +104,13 @@
             font-size: 16px;
             font-weight: bold;
             cursor: pointer;
-            /* 移除瀏覽器預設箭頭樣式 */
             -webkit-appearance: none;
             -moz-appearance: none;
             appearance: none; 
             min-width: 70px;
         }
         #extension-select option {
-            background-color: #333; /* 確保下拉選項在暗色模式下可見 */
+            background-color: #333;
         }
 
         /* 程式碼編輯區樣式 */
@@ -117,6 +143,8 @@
 <div class="container">
     <h1>📄 HTMI 檔案操作工具</h1>
     
+    <div id="status-bar"></div>
+    
     <div class="filename-group">
         <label for="filename-base-input">檔案名稱:</label>
         <input type="text" id="filename-base-input" placeholder="請輸入主檔名 (例如：index)" value="index">
@@ -124,17 +152,17 @@
         <select id="extension-select">
             <option value=".html">.html</option>
             <option value=".txt">.txt</option>
-            <option value=".csv">.csv</option>
         </select>
     </div>
 
     <div class="controls">
-        <button class="secondary" onclick="loadFromFile()">📥 匯入 HTMI 檔案</button>
-        <button class="secondary" onclick="exportToFile()">📤 匯出 HTMI 檔案</button>
-        <button class="secondary" onclick="newFile()">➕ 新增 HTMI 檔案</button>
-        <button class="danger" onclick="clearCode()">🗑️ 清除目前程式碼</button>
-        <button class="secondary" onclick="copyCode()">📋 複製目前程式碼</button>
-        <button class="primary" onclick="executeCode()">▶️ 執行 HTMI 檔案</button>
+        <button class="secondary" onclick="loadFromFile()">📥 匯入檔案</button>
+        <button class="secondary" onclick="exportToFile()">📤 匯出檔案</button>
+        <button class="secondary" onclick="newFile()">➕ 新增檔案</button>
+        <button class="danger" onclick="clearCode()">🗑️ 清除內容</button>
+        <button class="secondary" onclick="copyCode()">📋 複製</button>
+        <button class="secondary" onclick="pasteCode()">📋 貼上</button>
+        <button class="primary" onclick="executeCode()">▶️ 執行</button>
     </div>
 
     <textarea id="editor" placeholder="在此輸入您的 HTML, CSS, 和 JavaScript 程式碼..."></textarea>
@@ -144,23 +172,44 @@
     const editor = document.getElementById('editor');
     const filenameBaseInput = document.getElementById('filename-base-input');
     const extensionSelect = document.getElementById('extension-select');
+    const statusBar = document.getElementById('status-bar');
     
     const localStorageCodeKey = 'current_html_code';
     const localStorageFilenameKey = 'current_html_filename_base'; 
     const localStorageExtKey = 'current_file_extension'; 
 
-    // Helper 函數：取得完整檔名 (主檔名 + 選定的副檔名)
+    // Helper 函數：顯示非侵入式通知 (修改版：處理 display 屬性)
+    let statusTimeout;
+    function showStatus(message, type = 'info') {
+        statusBar.textContent = message;
+        statusBar.className = ''; // 重置 class
+        
+        if (type === 'success') statusBar.classList.add('status-success');
+        else if (type === 'error') statusBar.classList.add('status-error');
+        else statusBar.classList.add('status-info');
+
+        // 顯示通知列
+        statusBar.style.display = 'flex';
+
+        // 清除之前的計時器
+        if (statusTimeout) clearTimeout(statusTimeout);
+        
+        statusTimeout = setTimeout(() => {
+            // 隱藏通知列，釋放空間
+            statusBar.style.display = 'none';
+        }, 3000); // 3秒後消失
+    }
+
+    // Helper 函數：取得完整檔名
     function getFullFilename() {
         const base = filenameBaseInput.value.trim() || 'index';
         const ext = extensionSelect.value;
-        return base.replace(/\.(html|txt|csv)$/i, '') + ext; // 確保不會重複添加
+        return base.replace(/\.(html|txt)$/i, '') + ext;
     }
     
     // Helper 函數：根據選定的副檔名返回 MIME 類型
     function getMimeType(ext) {
         switch (ext) {
-            case '.csv':
-                return 'text/csv';
             case '.txt':
                 return 'text/plain';
             case '.html':
@@ -171,52 +220,37 @@
 
     // 1. 頁面載入時，從 localStorage 載入資料
     window.onload = function() {
-        // 載入程式碼
         const savedCode = localStorage.getItem(localStorageCodeKey);
-        if (savedCode !== null) { 
-            editor.value = savedCode;
-        } else {
-            editor.value = ''; 
-        }
+        if (savedCode !== null) editor.value = savedCode;
+        else editor.value = ''; 
         
-        // 載入主檔名
         const savedFilenameBase = localStorage.getItem(localStorageFilenameKey);
         filenameBaseInput.value = savedFilenameBase || 'index'; 
         
-        // 載入副檔名選擇
         const savedExtension = localStorage.getItem(localStorageExtKey);
-        if (savedExtension) {
+        if (savedExtension && savedExtension !== '.csv') {
             extensionSelect.value = savedExtension;
         }
         
-        // 任何編輯都會自動儲存
         editor.addEventListener('input', saveCodeToLocalStorage);
         filenameBaseInput.addEventListener('input', saveFilenameBaseToLocalStorage);
         extensionSelect.addEventListener('change', saveExtensionToLocalStorage);
     };
 
-    // 自動儲存到 Local Storage
-    function saveCodeToLocalStorage() {
-        localStorage.setItem(localStorageCodeKey, editor.value);
-    }
-    function saveFilenameBaseToLocalStorage() {
-        localStorage.setItem(localStorageFilenameKey, filenameBaseInput.value);
-    }
-    function saveExtensionToLocalStorage() {
-        localStorage.setItem(localStorageExtKey, extensionSelect.value);
-    }
+    function saveCodeToLocalStorage() { localStorage.setItem(localStorageCodeKey, editor.value); }
+    function saveFilenameBaseToLocalStorage() { localStorage.setItem(localStorageFilenameKey, filenameBaseInput.value); }
+    function saveExtensionToLocalStorage() { localStorage.setItem(localStorageExtKey, extensionSelect.value); }
 
-    // 2. 執行 HTMI 檔案按鈕 (在新頁面執行)
+    // 2. 執行 HTMI 檔案
     function executeCode() {
         const code = editor.value;
-        // 執行時固定使用 text/html 類型
         const blob = new Blob([code], { type: 'text/html' }); 
         const blobUrl = URL.createObjectURL(blob);
-        
         window.open(blobUrl, '_blank');
+        showStatus('正在新分頁執行程式碼...', 'info');
     }
 
-    // 3. 匯出 HTMI 檔案按鈕 (根據選擇的副檔名設定 MIME Type)
+    // 3. 匯出檔案
     function exportToFile() {
         const code = editor.value;
         const filename = getFullFilename(); 
@@ -233,14 +267,14 @@
         a.click();
         document.body.removeChild(a);
         
-        alert(`檔案 "${filename}" 已匯出！`);
+        showStatus(`檔案 "${filename}" 已成功匯出`, 'success');
     }
 
-    // 4. 匯入 HTMI 檔案按鈕 (從使用者電腦上傳檔案)
+    // 4. 匯入檔案
     function loadFromFile() {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
-        fileInput.accept = '.html, .htm, .txt, .csv'; // 允許匯入這些檔案類型
+        fileInput.accept = '.html, .htm, .txt';
 
         fileInput.onchange = e => {
             const file = e.target.files[0];
@@ -250,15 +284,13 @@
             reader.onload = event => {
                 editor.value = event.target.result;
                 
-                // 嘗試解析副檔名
                 const parts = file.name.split('.');
                 const ext = parts.length > 1 ? '.' + parts.pop().toLowerCase() : '.txt';
                 const baseName = parts.join('.') || 'index';
 
                 filenameBaseInput.value = baseName;
                 
-                // 嘗試將選擇器設為匯入的副檔名，如果選單中沒有，則預設為 .html
-                if (['.html', '.txt', '.csv'].includes(ext)) {
+                if (['.html', '.txt'].includes(ext)) {
                     extensionSelect.value = ext;
                 } else {
                     extensionSelect.value = '.html';
@@ -267,10 +299,10 @@
                 saveCodeToLocalStorage();
                 saveFilenameBaseToLocalStorage();
                 saveExtensionToLocalStorage();
-                alert(`檔案 "${file.name}" 匯入成功！`);
+                showStatus(`檔案 "${file.name}" 匯入成功`, 'success');
             };
             reader.onerror = () => {
-                alert('匯入檔案失敗！');
+                showStatus('匯入檔案失敗', 'error');
             };
             reader.readAsText(file);
         };
@@ -278,43 +310,63 @@
         fileInput.click();
     }
 
-    // 5. 新增 HTMI 檔案按鈕 
+    // 5. 新增檔案
     function newFile() {
-        const newFilenameBase = prompt("請輸入新檔案的主檔名 (例如：new_project)", "index"); 
-        
-        if (newFilenameBase === null) {
-            return;
-        }
-
-        // 清空程式碼並更新主檔名 (副檔名使用當前選單的值)
         editor.value = '';
-        filenameBaseInput.value = newFilenameBase;
-
+        filenameBaseInput.value = 'new_project';
+        
         saveCodeToLocalStorage();
         saveFilenameBaseToLocalStorage();
-        alert(`已創建新的檔案："${getFullFilename()}"。`);
+        showStatus('已建立新檔案 (預設名稱: new_project)', 'success');
     }
 
-    // 6. 清除目前程式碼按鈕 
+    // 6. 清除目前程式碼
     function clearCode() {
-        const confirmClear = confirm("確定要清除目前編輯器中的所有程式碼嗎？此操作不可撤銷。");
-        if (confirmClear) {
-            editor.value = '';
-            saveCodeToLocalStorage();
-            alert("程式碼已清除。");
+        if (editor.value.trim() === '') {
+            showStatus('編輯器已經是空的', 'info');
+            return;
+        }
+        editor.value = '';
+        saveCodeToLocalStorage();
+        showStatus('程式碼已清除', 'info');
+    }
+
+    // 7. 複製程式碼
+    function copyCode() {
+        if (!editor.value) {
+            showStatus('沒有內容可複製', 'error');
+            return;
+        }
+        
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(editor.value)
+                .then(() => showStatus('程式碼已複製到剪貼簿', 'success'))
+                .catch(() => fallbackCopy());
+        } else {
+            fallbackCopy();
         }
     }
 
-    // 7. 複製 HTMI 檔案按鈕
-    function copyCode() {
+    function fallbackCopy() {
         editor.select();
         try {
             document.execCommand('copy');
-            alert('程式碼已複製到剪貼簿！');
+            showStatus('程式碼已複製到剪貼簿', 'success');
         } catch (err) {
-            navigator.clipboard.writeText(editor.value)
-                .then(() => alert('程式碼已複製到剪貼簿！'))
-                .catch(() => alert('複製失敗，請手動複製。'));
+            showStatus('複製失敗，請手動複製', 'error');
+        }
+    }
+
+    // 8. 貼上剪貼簿功能
+    async function pasteCode() {
+        try {
+            const text = await navigator.clipboard.readText();
+            editor.value = text; 
+            saveCodeToLocalStorage();
+            showStatus('已從剪貼簿貼上內容', 'success');
+        } catch (err) {
+            console.error('Paste error:', err);
+            showStatus('無法讀取剪貼簿 (請確認瀏覽器權限)', 'error');
         }
     }
 
